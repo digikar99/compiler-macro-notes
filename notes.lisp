@@ -2,7 +2,8 @@
 
 (define-condition note (condition)
   ((datum :initarg :datum :reader datum)
-   (args  :initarg :args  :reader args))
+   (args  :initarg :args  :reader args)
+   (muffled-p :accessor muffled-p :initform nil))
   (:report (lambda (condition stream)
              (apply #'format stream (datum condition) (args condition)))))
 
