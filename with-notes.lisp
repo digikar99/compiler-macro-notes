@@ -18,29 +18,35 @@ Example:
                       &body body)
   "A macro to readably signal COMPILER-MACRO-NOTES:NOTE for end-users:
 - Wraps the BODY in an UNWIND-PROTECT and prints the conditions that were signalled
-  before exiting. If UNWIND-ON-SIGNAL is non-NIL, returns FORM.
+  before exiting. If UNWIND-ON-SIGNAL is non-NIL, then returns FORM if a condition was
+  signalled, else if no condition was signalled returns the (primary) return value of BODY.
 - If UNWIND-ON-SIGNAL is NIL, surrounds BODY in a HANDLER-BIND and prints all the compiler
   notes that were signalled. If non-NIL, prints only the first signalled note.
 - OPTIMIZATION-FAILURE-NOTEs are printed only if OPTIMIZATION-NOTE-CONDITION form evaluates
   to non-NIL: OPTIMIZATION-NOTE-CONDITION is expected to be a form.
 - OTHER-CONDITIONS is a type-specifier that indicates which other conditions should
   be reported."
-  (with-gensyms (s note notes optimization-failure-notes)
+  (with-gensyms (s note notes return-form condition-signalled optimization-failure-notes)
     (once-only (form per-line-prefix)
-      `(let (,notes ,optimization-failure-notes)
+      `(let (,notes ,condition-signalled ,optimization-failure-notes)
+         (declare (ignorable ,condition-signalled))
          (unwind-protect
               ,(if unwind-on-signal
                    `(progn
-                      (handler-case (progn ,@body)
-                        (optimization-failure-note (,note)
-                          (push ,note ,optimization-failure-notes)
-                          (push ,note ,notes))
-                        (note (,note)
-                          (push ,note ,notes))
-                        (condition (,note)
-                          (when (typep ,note ',other-conditions)
-                            (push ,note ,notes))))
-                      ,form)
+                      (let ((,return-form (handler-case (progn ,@body)
+                                           (optimization-failure-note (,note)
+                                             (push ,note ,optimization-failure-notes)
+                                             (push ,note ,notes)
+                                             (setq ,condition-signalled t))
+                                           (note (,note)
+                                             (push ,note ,notes)
+                                             (setq ,condition-signalled t))
+                                           (,other-conditions (,note)
+                                             (push ,note ,notes)
+                                             (setq ,condition-signalled t)))))
+                        (if ,condition-signalled
+                            ,form
+                            ,return-form)))
                    `(handler-bind ((condition
                                      (lambda (,note)
                                        (when (or (typep ,note 'note)
