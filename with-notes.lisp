@@ -1,6 +1,6 @@
 (in-package :compiler-macro-notes)
 
-(defvar *muffled-notes* nil
+(defvar *muffled-notes-type* nil
   "Bound to a type. Notes that are of type given by the value of this variable
 will not be printed.
 Example:
@@ -51,12 +51,12 @@ Example:
                                        (push ,note ,optimization-failure-notes))))
                       ,@body))
            (setq ,notes
-                 (remove-if (lambda (c) (or (typep c *muffled-notes*)
+                 (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,notes))
            (setq ,optimization-failure-notes
-                 (remove-if (lambda (c) (or (typep c *muffled-notes*)
+                 (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,optimization-failure-notes))
