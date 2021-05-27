@@ -4,4 +4,5 @@
    #:*muffled-notes-type*
    #:with-notes
    #:note
-   #:optimization-failure-note))
+   #:optimization-failure-note
+   #:muffle))

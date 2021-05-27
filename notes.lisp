@@ -8,3 +8,5 @@
              (apply #'format stream (datum condition) (args condition)))))
 
 (define-condition optimization-failure-note (note) ())
+
+(defun muffle (note) (setf (muffled-p note) t))

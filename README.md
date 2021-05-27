@@ -8,7 +8,7 @@ Another attempt at [compiler-macro](https://github.com/Bike/compiler-macro).
 
 ### Example Usage
 
-Notes may be muffled by binding `compiler-macro-notes:*muffled-notes*` to the appropriate type.
+Notes may be muffled by calling `muffle` on them, or by binding `compiler-macro-notes:*muffled-notes*` to the appropriate type. The effect is that the notes are signalled but not printed.
 
 ```lisp
 
