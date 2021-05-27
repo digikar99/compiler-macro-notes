@@ -56,11 +56,13 @@ Example:
                                      (lambda (,note)
                                        (push ,note ,optimization-failure-notes))))
                       ,@body))
+           (setq ,notes (remove-duplicates ,notes))
            (setq ,notes
                  (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,notes))
+           (setq ,optimization-failure-notes (remove-duplicates ,optimization-failure-notes))
            (setq ,optimization-failure-notes
                  (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
                                             (and (typep c 'note)
