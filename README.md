@@ -8,7 +8,7 @@ Another attempt at [compiler-macro](https://github.com/Bike/compiler-macro).
 
 ### Example Usage
 
-Notes may be muffled by calling `muffle` on them, or by binding `compiler-macro-notes:*muffled-notes*` to the appropriate type. The effect is that the notes are signalled but not printed.
+Notes may be muffled by calling `muffle` on them, or by using the custom declaration `compiler-macro-notes:muffle-notes` with the appropriate types. The effect is that the notes are signalled but not printed.
 
 ```lisp
 
@@ -20,8 +20,8 @@ Notes may be muffled by calling `muffle` on them, or by binding `compiler-macro-
   (:report (lambda (c s)
              (format s "~S is not a number" (form c)))))
 
-(define-compiler-macro foo (&whole form a b)
-  (with-notes (form)
+(define-compiler-macro foo (&whole form a b &environment env)
+  (with-notes (form env)
     (unless (numberp a)
       (signal 'not-a-number :form a))
     (unless (numberp b)
@@ -34,6 +34,10 @@ Notes may be muffled by calling `muffle` on them, or by binding `compiler-macro-
 ; because:
 ;
 ;   A is not a number
+
+(defun bar (a b)
+  (declare (muffle-notes not-a-number)) ; no such note
+  (foo a b))
 
 (disassemble 'bar)
 ; disassembly for BAR

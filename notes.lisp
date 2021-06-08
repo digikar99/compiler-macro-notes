@@ -10,3 +10,8 @@
 (define-condition optimization-failure-note (note) ())
 
 (defun muffle (note) (setf (muffled-p note) t))
+
+(define-declaration muffle-notes (names env)
+  (values :declare
+          (cons 'muffle-notes
+                (append names (declaration-information 'muffle-notes env)))))

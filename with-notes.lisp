@@ -1,14 +1,6 @@
 (in-package :compiler-macro-notes)
 
-(defvar *muffled-notes-type* nil
-  "Bound to a type. Notes that are of type given by the value of this variable
-will not be printed.
-Example:
-- No notes will be printed if values is T.
-- Optimization notes will not be printed if values is
-  COMPILER-MACRO-NOTES:OPTIMIZATION-FAILURE-NOTE")
-
-(defmacro with-notes ((form
+(defmacro with-notes ((form env
                        &key
                          (name)
                          (unwind-on-signal t)
@@ -17,6 +9,8 @@ Example:
                          (optimization-note-condition t))
                       &body body)
   "A macro to readably signal COMPILER-MACRO-NOTES:NOTE for end-users:
+- Expects ENV to evaluate to an environment suitable for passing to
+  CL-ENVIRONMENTS.CLTL2:DEFINE-DECLARATION
 - Wraps the BODY in an UNWIND-PROTECT and prints the conditions that were signalled
   before exiting. If UNWIND-ON-SIGNAL is non-NIL, then returns FORM if a condition was
   signalled, else if no condition was signalled returns the (primary) return value of BODY.
@@ -26,9 +20,11 @@ Example:
   to non-NIL: OPTIMIZATION-NOTE-CONDITION is expected to be a form.
 - OTHER-CONDITIONS is a type-specifier that indicates which other conditions should
   be reported."
-  (with-gensyms (s note notes return-form condition-signalled optimization-failure-notes)
+  (with-gensyms (s note notes muffled-notes-type
+                   return-form condition-signalled optimization-failure-notes)
     (once-only (form per-line-prefix)
-      `(let (,notes ,condition-signalled ,optimization-failure-notes)
+      `(let ((,muffled-notes-type `(or ,@(declaration-information 'muffle-notes ,env)))
+             ,notes ,condition-signalled ,optimization-failure-notes)
          (declare (ignorable ,condition-signalled))
          (unwind-protect
               ,(if unwind-on-signal
@@ -58,13 +54,13 @@ Example:
                       ,@body))
            (setq ,notes (remove-duplicates ,notes))
            (setq ,notes
-                 (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
+                 (remove-if (lambda (c) (or (typep c ,muffled-notes-type)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,notes))
            (setq ,optimization-failure-notes (remove-duplicates ,optimization-failure-notes))
            (setq ,optimization-failure-notes
-                 (remove-if (lambda (c) (or (typep c *muffled-notes-type*)
+                 (remove-if (lambda (c) (or (typep c ,muffled-notes-type)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,optimization-failure-notes))
