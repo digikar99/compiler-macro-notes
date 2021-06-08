@@ -8,7 +8,12 @@ Another attempt at [compiler-macro](https://github.com/Bike/compiler-macro).
 
 ### Example Usage
 
-Notes may be muffled by calling `muffle` on them, or by using the custom declaration `compiler-macro-notes:muffle-notes` with the appropriate types. The effect is that the notes are signalled but not printed.
+Notes may be muffled by
+- calling `muffle` on them; this is useful if you are not relying on `with-notes` to handle them
+- or by using the custom declaration `compiler-macro-notes:muffle-notes` with the appropriate types
+- or by binding `*muffled-notes-type*` to the appropriate type at compile time; this can be useful if you are relying on `eval` to - say - test something
+
+The effect is that the notes are signalled but not printed.
 
 ```lisp
 
@@ -36,7 +41,7 @@ Notes may be muffled by calling `muffle` on them, or by using the custom declara
 ;   A is not a number
 
 (defun bar (a b)
-  (declare (muffle-notes not-a-number)) ; no such note
+  (declare (muffle-notes not-a-number)) ; no note printed
   (foo a b))
 
 (disassemble 'bar)

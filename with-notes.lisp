@@ -1,5 +1,16 @@
 (in-package :compiler-macro-notes)
 
+(defvar *muffled-notes-type* nil
+  "Bound to a type. Notes that are of type given by the value of this variable
+will not be printed.
+Example:
+- No notes will be printed if values is T.
+- Optimization notes will not be printed if values is
+  COMPILER-MACRO-NOTES:OPTIMIZATION-FAILURE-NOTE
+
+The compile time value of this variable is OR-ed with the MUFFLE-NOTES declarations
+to decide which notes to muffle.")
+
 (defmacro with-notes ((form env
                        &key
                          (name)
@@ -23,23 +34,24 @@
   (with-gensyms (s note notes muffled-notes-type
                    return-form condition-signalled optimization-failure-notes)
     (once-only (form per-line-prefix)
-      `(let ((,muffled-notes-type `(or ,@(declaration-information 'muffle-notes ,env)))
+      `(let ((,muffled-notes-type `(or ,*muffled-notes-type*
+                                       ,@(declaration-information 'muffle-notes ,env)))
              ,notes ,condition-signalled ,optimization-failure-notes)
          (declare (ignorable ,condition-signalled))
          (unwind-protect
               ,(if unwind-on-signal
                    `(progn
                       (let ((,return-form (handler-case (progn ,@body)
-                                           (optimization-failure-note (,note)
-                                             (push ,note ,optimization-failure-notes)
-                                             (push ,note ,notes)
-                                             (setq ,condition-signalled t))
-                                           (note (,note)
-                                             (push ,note ,notes)
-                                             (setq ,condition-signalled t))
-                                           (,other-conditions (,note)
-                                             (push ,note ,notes)
-                                             (setq ,condition-signalled t)))))
+                                            (optimization-failure-note (,note)
+                                              (push ,note ,optimization-failure-notes)
+                                              (push ,note ,notes)
+                                              (setq ,condition-signalled t))
+                                            (note (,note)
+                                              (push ,note ,notes)
+                                              (setq ,condition-signalled t))
+                                            (,other-conditions (,note)
+                                              (push ,note ,notes)
+                                              (setq ,condition-signalled t)))))
                         (if ,condition-signalled
                             ,form
                             ,return-form)))
