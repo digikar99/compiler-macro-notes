@@ -9,9 +9,12 @@
 
 (define-condition optimization-failure-note (note) ())
 
-(defun muffle (note) (setf (muffled-p note) t))
+(defun muffle (note)
+  "Do not print this NOTE.
+As a declaration, this takes in type specifiers as arguments."
+  (setf (muffled-p note) t))
 
-(define-declaration muffle-notes (names env)
+(define-declaration muffle (names env)
   (values :declare
-          (cons 'muffle-notes
-                (append names (declaration-information 'muffle-notes env)))))
+          (cons 'muffle
+                (append names (declaration-information 'muffle env)))))

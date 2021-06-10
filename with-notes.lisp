@@ -8,7 +8,7 @@ Example:
 - Optimization notes will not be printed if values is
   COMPILER-MACRO-NOTES:OPTIMIZATION-FAILURE-NOTE
 
-The compile time value of this variable is OR-ed with the MUFFLE-NOTES declarations
+The compile time value of this variable is OR-ed with the MUFFLE declarations
 to decide which notes to muffle.")
 
 (defmacro with-notes ((form env
@@ -35,7 +35,7 @@ to decide which notes to muffle.")
                    return-form condition-signalled optimization-failure-notes)
     (once-only (form per-line-prefix)
       `(let ((,muffled-notes-type `(or ,*muffled-notes-type*
-                                       ,@(declaration-information 'muffle-notes ,env)))
+                                       ,@(declaration-information 'muffle ,env)))
              ,notes ,condition-signalled ,optimization-failure-notes)
          (declare (ignorable ,condition-signalled))
          (unwind-protect
