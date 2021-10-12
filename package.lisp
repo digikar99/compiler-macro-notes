@@ -5,9 +5,4 @@
    #:with-notes
    #:note
    #:optimization-failure-note
-   #:muffle
-
-   #:*print-expansion-notes*
-   #:with-expansion-notes
-   #:*parent-form*
-   #:macroexpand-all))
+   #:muffle))

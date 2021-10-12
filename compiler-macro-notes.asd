@@ -5,9 +5,7 @@
   :license "MIT"
   :version "0.2.0" ; beta - things are starting to look slightly stable
   :depends-on ("alexandria"
-               "cl-environments"
-               ;; cl-form-types.walker only for creating a macroexpand-all
-               "cl-form-types")
+               "cl-environments")
   :serial t
   :components ((:file "package")
                (:file "notes")

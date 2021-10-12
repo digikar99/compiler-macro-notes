@@ -6,11 +6,7 @@ Another attempt at [compiler-macro](https://github.com/Bike/compiler-macro).
 
 - Two main condition classes are provided: [compiler-macro-notes:note](#note) and [compiler-macro-notes:optimization-failure-note](#optimization-failure-note). While the latter is a subclass of the former, the latter notes are printed in a slightly different manner to the former.
 
-- Additional tools are provided for the printing of the expansions that led to the note to aid debugging:
-  - [\*print-expansion-notes\*](#print-expansion-notes)
-  - [with-expansion-notes](#with-expansion-notes)
-  - [\*parent-form\*](#parent-form)
-  - [macroexpand-all](#macroexpand-all)
+- To be able to correctly print the expansion path that led to the condition, user code is expected to avoid performing a nonlocal exit to a place outside [with-notes](#with-notes).
 
 ## EXAMPLE USAGE
 
@@ -97,39 +93,6 @@ Example:
 The compile time value of this variable is OR-ed with the [muffle](#muffle) declarations
 to decide which notes to muffle.
 
-### \*parent-form\*
-
-```lisp
-Variable
-Default Unbound
-```
-
-While using [with-expansion-notes](#with-expansion-notes) after setting [\*print-expansion-notes\*](#print-expansion-notes) to T
-at compile time, user of [with-notes](#with-notes) needs to bind *PARENT-FORM* to an
-appropriate FORM, before calling [compiler-macro-notes:macroexpand-all](#macroexpand-all) on FORM
-before finally emitting the expansion. An example usage is in
-POLYMORPHIC-FUNCTIONS::PF-COMPILER-MACRO.
-
-### \*print-expansion-notes\*
-
-```lisp
-Variable
-Default Value: NIL
-```
-
-If non-NIL, prints notes only when the forms are surrounded by
-[with-expansion-notes](#with-expansion-notes). Along with the use of [\*parent-form\*](#parent-form), this allows
-[with-notes](#with-notes) to provide more helpful compiler notes, printing the expansion
-forms along the way.
-
-If NIL, prints the notes without any expansion forms that led to it.
-
-### macroexpand-all
-
-```lisp
-Function: (macroexpand-all form &optional env)
-```
-
 ### muffle
 
 ```lisp
@@ -153,45 +116,6 @@ Condition
 ```
 
 
-### with-expansion-notes
-
-```lisp
-Macro: (with-expansion-notes &body body)
-```
-
-To print the expansions that led to the notes,
-1. Set the (compile-time) value of [\*print-expansion-notes\*](#print-expansion-notes) to non-NIL
-2. Surround the form(s) in `with-expansion-notes`
-3. Make the code using [with-notes](#with-notes) make use of [\*parent-form\*](#parent-form) and [macroexpand-all](#macroexpand-all)
-   appropriately.
-
-To be able to print the expansions, one requires three things:
-- firstly, the form before expansion, the from-form,
-- secondly, the expansion itself,
-- and thirdly, the sub-form in the expansion that is using [with-notes](#with-notes),
-  call this the to-form for the below discussion.
-
-In the absence of the use of this macro, a MACRO or COMPILER-MACRO only has
-access to the to-form. It does not have access to the expansion aka the
-parent-form of the to-form, and neither to the from-form which was the form
-that got expanded to the to-form.
-
-However, it is also the case that the to-form that a MACRO or COMPILER-MACRO
-receives through its &WHOLE argument expands to the expansion, and within this
-expansion there exist the to-form of the next stage of the (compiler)
-macroexpansion process. Thus, the (COMPILER) MACRO effectively has access to the
-from-form of the *next* stage of the expansion. If its expansion is stored as a
-dynamic-binding to [\*parent-form\*](#parent-form), this information is lost as one exits the
- (COMPILER) MACRO. Thus, one way to allow [with-notes](#with-notes) to make use of this
-information is to bind the [\*parent-form\*](#parent-form) to the expansion and call
-[macroexpand-all](#macroexpand-all) on the not fully-expanded expansion. Because the to-form of the
-current stage is the from-form of the next stage of expansion, this is taken
-care of in recursive calls to [with-notes](#with-notes) during [macroexpand-all](#macroexpand-all).
-
-Another analogy about from-form and to-form is a path with labelled edges; with
-nodes as the from-form and to-form and the edge-labels as the expansion of the
-from-form.
-
 ### with-notes
 
 ```lisp
@@ -204,12 +128,19 @@ Macro: (with-notes
 A macro to readably signal [compiler-macro-notes:note](#note) for end-users:
 - Expects `env` to evaluate to an environment suitable for passing to
   CL-ENVIRONMENTS.CLTL2:DEFINE-DECLARATION
-- Wraps the `body` in an UNWIND-PROTECT and prints the conditions that were signalled
-  before exiting. If `unwind-on-signal` is non-NIL, then returns `form` if a condition was
-  signalled, else if no condition was signalled returns the (primary) return value of `body`.
-- If `unwind-on-signal` is NIL, surrounds `body` in a HANDLER-BIND and prints all the compiler
-  notes that were signalled. If non-NIL, prints only the first signalled note.
-- [optimization-failure-note](#optimization-failure-note)s are printed only if `optimization-note-condition` form evaluates
-  to non-NIL: `optimization-note-condition` is expected to be a form.
-- `other-conditions` is a type-specifier that indicates which other conditions should
-  be reported.
+- `body` is surrounded by a (BLOCK `with-notes` ...) on the outside
+- Further, `with-notes` also wraps the `body` in an UNWIND-PROTECT and prints the
+  conditions that were signalled before exiting. If `unwind-on-signal` is non-NIL,
+  then returns `form` if a condition was signalled, else if no condition was
+  signalled returns the (primary) return value of `body`.
+- If `unwind-on-signal` is NIL, surrounds `body` in a HANDLER-BIND and prints all
+  the compiler notes that were signalled. If non-NIL, prints only the first
+  signalled note.
+- [optimization-failure-note](#optimization-failure-note)s are printed only if `optimization-note-condition`
+  form evaluates to non-NIL: `optimization-note-condition` is expected to be a
+  form.
+- `other-conditions` is a type-specifier that indicates which other conditions
+  should be reported.
+- If the user code in BODY does result in an expansion, then it is expected to
+  avoid performing a nonlocal exit to a place outside `with-notes`. Not
+  doing so could result in an incorrect print of the expansion paths.
