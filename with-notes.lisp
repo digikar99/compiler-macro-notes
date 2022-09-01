@@ -47,8 +47,9 @@ And again, there is no trouble in case b.
                                         (macroexpand-1 'parent-form env)
                                         (macroexpand-1 'previous-form env)))
             :location #+sbcl
-                      (swank/sbcl::compiler-note-location note
-                                                          (sb-c::find-error-context nil))
+                      (funcall (find-symbol "COMPILER-NOTE-LOCATION" :swank/sbcl)
+                               note
+                               (sb-c::find-error-context nil))
                       #-sbcl nil)
     (push note *swank-signalled-notes*)))
 
