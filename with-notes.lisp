@@ -30,38 +30,40 @@ And again, there is no trouble in case b.
 
 |#
 
-(defmacro with-notes ((form env
-                       &key
-                         (name)
-                         (unwind-on-signal t)
-                         (other-conditions nil)
-                         (per-line-prefix "; ")
-                         (optimization-note-condition t))
-                      &body body)
-  "A macro to readably signal COMPILER-MACRO-NOTES:NOTE for end-users:
-- Expects ENV to evaluate to an environment suitable for passing to
-  CL-ENVIRONMENTS.CLTL2:DEFINE-DECLARATION
-- BODY is surrounded by a (BLOCK WITH-NOTES ...) on the outside
-- Further, WITH-NOTES also wraps the BODY in an UNWIND-PROTECT and prints the
-  conditions that were signalled before exiting. If UNWIND-ON-SIGNAL is non-NIL,
-  then returns FORM if a condition was signalled, else if no condition was
-  signalled returns the (primary) return value of BODY.
-- If UNWIND-ON-SIGNAL is NIL, surrounds BODY in a HANDLER-BIND and prints all
-  the compiler notes that were signalled. If non-NIL, prints only the first
-  signalled note.
-- OPTIMIZATION-FAILURE-NOTEs are printed only if OPTIMIZATION-NOTE-CONDITION
-  form evaluates to non-NIL: OPTIMIZATION-NOTE-CONDITION is expected to be a
-  form.
-- OTHER-CONDITIONS is a type-specifier that indicates which other conditions
-  should be reported.
-- If the user code in BODY does result in an expansion, then it is expected to
-  avoid performing a nonlocal exit to a place outside WITH-NOTES. Not
-  doing so could result in an incorrect print of the expansion paths."
+(defvar *swank-signalled-notes* nil)
+
+(defun swank-signal (note env)
+  (when (and (find-package :swank/backend)
+             (not (muffled-p note))
+             (not (member note *swank-signalled-notes*)))
+    (signal (find-symbol "COMPILER-CONDITION" :swank/backend)
+            :original-condition note
+            :severity :note
+            :message (format nil "~A" note)
+            :source-context (if (eq 'parent-form
+                                    (macroexpand-1 'parent-form env))
+                                nil
+                                (format nil "in:  ~S~%generated from:~%  ~S"
+                                        (macroexpand-1 'parent-form env)
+                                        (macroexpand-1 'previous-form env)))
+            :location #+sbcl
+                      (swank/sbcl::compiler-note-location note
+                                                          (sb-c::find-error-context nil))
+                      #-sbcl nil)
+    (push note *swank-signalled-notes*)))
+
+(defun with-notes-function (body form env
+                            &key name (unwind-on-signal t)
+                              (other-conditions nil)
+                              (per-line-prefix "; ")
+                              (optimization-note-condition t))
   (with-gensyms (s note notes muffled-notes-type name-string
                    return-form condition-signalled optimization-failure-notes)
     (once-only (form per-line-prefix)
       `(let ((,muffled-notes-type `(or ,*muffled-notes-type*
                                        ,@(declaration-information 'muffle ,env)))
+             (*swank-signalled-notes* (when (find-package :swank/backend)
+                                        (copy-list *swank-signalled-notes*)))
              ,notes ,condition-signalled ,optimization-failure-notes)
          (declare (ignorable ,condition-signalled))
          (unwind-protect
@@ -92,10 +94,10 @@ And again, there is no trouble in case b.
                                                (lambda (,note)
                                                  (push ,note ,optimization-failure-notes))))
                                 ,@body)))))
-                (if (equalp ,form ,return-form)
+                (if (equalp ,form ,return-form) ; no transformation occurred
                     ,return-form
-                    `(symbol-macrolet ((previous-form ,,form)
-                                       (parent-form ,,return-form))
+                    `(cl:symbol-macrolet ((previous-form ,,form)
+                                          (parent-form ,,return-form))
                        ,,return-form)))
 
            (setq ,notes (remove-duplicates ,notes))
@@ -112,6 +114,10 @@ And again, there is no trouble in case b.
                             ,optimization-failure-notes))
            (nreversef ,notes)
            (nreversef ,optimization-failure-notes)
+           (when ,optimization-note-condition
+             (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env)))
+           (when (set-difference ,notes ,optimization-failure-notes)
+             (dolist (,note ,notes) (swank-signal ,note ,env)))
            (let ((,s *error-output*))
              (when (and ,optimization-note-condition ,optimization-failure-notes)
                (terpri ,s)
@@ -163,3 +169,35 @@ And again, there is no trouble in case b.
                    (format ,s "~{~^~%~A~}" ,notes)
                    (mapc (lambda (c) (setf (muffled-p c) t)) ,notes)))
                (terpri ,s))))))))
+
+(defmacro with-notes ((form env
+                       &rest key-args
+                       &key
+                         (name)
+                         (unwind-on-signal t)
+                         (other-conditions nil)
+                         (per-line-prefix "; ")
+                         (optimization-note-condition t))
+                      &body body)
+  "A macro to readably signal COMPILER-MACRO-NOTES:NOTE for end-users:
+- Expects ENV to evaluate to an environment suitable for passing to
+  CL-ENVIRONMENTS.CLTL2:DEFINE-DECLARATION
+- BODY is surrounded by a (BLOCK WITH-NOTES ...) on the outside
+- Further, WITH-NOTES also wraps the BODY in an UNWIND-PROTECT and prints the
+  conditions that were signalled before exiting. If UNWIND-ON-SIGNAL is non-NIL,
+  then returns FORM if a condition was signalled, else if no condition was
+  signalled returns the (primary) return value of BODY.
+- If UNWIND-ON-SIGNAL is NIL, surrounds BODY in a HANDLER-BIND and prints all
+  the compiler notes that were signalled. If non-NIL, prints only the first
+  signalled note.
+- OPTIMIZATION-FAILURE-NOTEs are printed only if OPTIMIZATION-NOTE-CONDITION
+  form evaluates to non-NIL: OPTIMIZATION-NOTE-CONDITION is expected to be a
+  form.
+- OTHER-CONDITIONS is a type-specifier that indicates which other conditions
+  should be reported.
+- If the user code in BODY does result in an expansion, then it is expected to
+  avoid performing a nonlocal exit to a place outside WITH-NOTES. Not
+  doing so could result in an incorrect print of the expansion paths."
+  (declare (ignorable name unwind-on-signal other-conditions
+                      per-line-prefix optimization-note-condition))
+  (apply 'with-notes-function body form env key-args))
