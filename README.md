@@ -8,6 +8,8 @@ Another attempt at [compiler-macro](https://github.com/Bike/compiler-macro).
 
 - To be able to correctly print the expansion path that led to the condition, user code is expected to avoid performing a nonlocal exit to a place outside [with-notes](#with-notes).
 
+Support is also provided for reporting the notes via swank/slime if loaded.
+
 ## EXAMPLE USAGE
 
 Notes may be muffled by
