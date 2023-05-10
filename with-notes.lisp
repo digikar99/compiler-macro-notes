@@ -32,6 +32,12 @@ And again, there is no trouble in case b.
 
 (defvar *swank-signalled-notes* nil)
 
+(defun stable-set-difference (list1 list2 &key key test)
+  (loop :For elt :in list1
+        :unless (member elt list2 :key (or key #'identity)
+                                  :test (or test #'eql))
+          :collect elt))
+
 (defun swank-signal (note env)
   (when (and (find-package :swank/backend)
              (not (muffled-p note))
@@ -113,11 +119,9 @@ And again, there is no trouble in case b.
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,optimization-failure-notes))
-           (nreversef ,notes)
-           (nreversef ,optimization-failure-notes)
            (when ,optimization-note-condition
              (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env)))
-           (when (set-difference ,notes ,optimization-failure-notes)
+           (when (stable-set-difference ,notes ,optimization-failure-notes)
              (dolist (,note ,notes) (swank-signal ,note ,env)))
            (let ((,s *error-output*))
              (when (and ,optimization-note-condition ,optimization-failure-notes)
@@ -148,7 +152,7 @@ And again, there is no trouble in case b.
                    (format ,s "~{~^~%~A~}" ,optimization-failure-notes)
                    (mapc (lambda (c) (setf (muffled-p c) t)) ,optimization-failure-notes)))
                (terpri ,s))
-             (when (set-difference ,notes ,optimization-failure-notes)
+             (when (stable-set-difference ,notes ,optimization-failure-notes)
                (unless ,optimization-failure-notes (terpri ,s))
                (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
                  (format ,s "While compiling~%")
