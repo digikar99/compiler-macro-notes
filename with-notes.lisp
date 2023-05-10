@@ -127,6 +127,8 @@ And again, there is no trouble in case b.
              (when (and ,optimization-note-condition ,optimization-failure-notes)
                (terpri ,s)
                (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
+                 (when *compile-file-pathname*
+                   (format ,s "In file ~A~%" *compile-file-pathname*))
                  (format ,s "(Compiler) Macro of" )
                  (let ((,name-string
                          (format nil (if (stringp ,name) "~A" " ~S ") (or ,name (first ,form)))))
