@@ -1,8 +1,11 @@
-(defpackage :compiler-macro-notes
+(defpackage #:compiler-macro-notes
   (:use :cl :alexandria :cl-environments.cltl2)
   (:export
-   #:*muffled-notes-type*
-   #:with-notes
    #:note
    #:optimization-failure-note
-   #:muffle))
+   #:muffle
+   #:*muffled-notes-type*
+   #:with-notes
+   #:root-form
+   #:parent-form
+   #:augment-expansion-path))

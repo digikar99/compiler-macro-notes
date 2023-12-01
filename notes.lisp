@@ -1,4 +1,4 @@
-(in-package :compiler-macro-notes)
+(in-package #:compiler-macro-notes)
 
 (define-condition note (condition)
   ((datum :initarg :datum :reader datum)

@@ -1,4 +1,12 @@
-(in-package :compiler-macro-notes)
+(in-package #:compiler-macro-notes)
+
+(setf (documentation 'root-form 'function)
+      "To be bound using symbol-macrolet to the toplevel form emitting
+the compiler macro note.")
+
+(setf (documentation 'parent-form 'function)
+      "To be bound using symbol-macrolet to the parent form
+emitting the compiler macro note.")
 
 (defvar *muffled-notes-type* nil
   "Bound to a type. Notes that are of type given by the value of this variable
@@ -53,19 +61,23 @@ And again, there is no trouble in case b.
                                         (macroexpand-1 'parent-form env)
                                         (macroexpand-1 'previous-form env)))
             :location #+sbcl
-                      (funcall (find-symbol "COMPILER-NOTE-LOCATION" :swank/sbcl)
-                               note
-                               (sb-c::find-error-context nil))
-                      #-sbcl nil)
+            (funcall (find-symbol "COMPILER-NOTE-LOCATION" :swank/sbcl)
+                     note
+                     (sb-c::find-error-context nil))
+            #-sbcl nil)
     (push note *swank-signalled-notes*)))
+
+
 
 (defun with-notes-function (body form env
                             &key name (unwind-on-signal t)
                               (other-conditions nil)
                               (per-line-prefix "; ")
                               (optimization-note-condition t))
-  (with-gensyms (s note notes muffled-notes-type name-string
+
+  (with-gensyms (s note notes other-notes muffled-notes-type name-string
                    return-form condition-signalled optimization-failure-notes)
+
     (once-only (form per-line-prefix)
       `(let ((,muffled-notes-type `(or ,*muffled-notes-type*
                                        ,@(declaration-information 'muffle ,env)))
@@ -73,7 +85,9 @@ And again, there is no trouble in case b.
                                         (copy-list *swank-signalled-notes*)))
              ,notes ,condition-signalled ,optimization-failure-notes)
          (declare (ignorable ,condition-signalled))
+
          (unwind-protect
+
               (let ((,return-form
                       (block with-notes
                         ,(if unwind-on-signal
@@ -101,10 +115,10 @@ And again, there is no trouble in case b.
                                                (lambda (,note)
                                                  (push ,note ,optimization-failure-notes))))
                                 ,@body)))))
+
                 (if (equalp ,form ,return-form) ; no transformation occurred
                     ,return-form
-                    `(cl:symbol-macrolet ((previous-form ,,form)
-                                          (parent-form ,,return-form))
+                    `(cl:symbol-macrolet ((parent-form ,,return-form))
                        ,,return-form)))
 
            (setq ,notes (remove-duplicates ,notes))
@@ -113,69 +127,80 @@ And again, there is no trouble in case b.
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,notes))
-           (setq ,optimization-failure-notes (remove-duplicates ,optimization-failure-notes))
+           (setq ,optimization-failure-notes
+                 (remove-duplicates ,optimization-failure-notes))
            (setq ,optimization-failure-notes
                  (remove-if (lambda (c) (or (typep c ,muffled-notes-type)
                                             (and (typep c 'note)
                                                  (muffled-p c))))
                             ,optimization-failure-notes))
-           (when ,optimization-note-condition
-             (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env)))
-           (when (stable-set-difference ,notes ,optimization-failure-notes)
-             (dolist (,note ,notes) (swank-signal ,note ,env)))
-           (let ((,s *error-output*))
-             (when (and ,optimization-note-condition ,optimization-failure-notes)
-               (terpri ,s)
-               (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
-                 (when *compile-file-pathname*
-                   (format ,s "In file ~A~%" *compile-file-pathname*))
-                 (format ,s "(Compiler) Macro of" )
-                 (let ((,name-string
-                         (format nil (if (stringp ,name) "~A" " ~S ") (or ,name (first ,form)))))
-                   (format ,s (if (< (length ,name-string) 38)
-                                  "~A"
-                                  "~&  ~A~&")
-                           ,name-string))
-                 (format ,s "is unable to optimize~%")
-                 (pprint-logical-block (,s nil :per-line-prefix "  ")
-                   (format ,s "~S" ,form))
-                 (unless (eq 'parent-form
-                             (macroexpand-1 'parent-form ,env))
-                   (let ((parent-form (macroexpand-1 'parent-form ,env))
-                         (previous-form (macroexpand-1 'previous-form ,env)))
-                     (format ,s "~&in~%")
-                     (pprint-logical-block (,s nil :per-line-prefix "  ")
-                       (format ,s "~S" parent-form))
-                     (format ,s "~&generated from~&")
-                     (pprint-logical-block (,s nil :per-line-prefix "  ")
-                       (format ,s "~S" previous-form))))
-                 (format ,s "~&because:~&")
-                 (pprint-logical-block (,s nil :per-line-prefix "  ")
-                   (format ,s "~{~^~%~A~}" ,optimization-failure-notes)
-                   (mapc (lambda (c) (setf (muffled-p c) t)) ,optimization-failure-notes)))
-               (terpri ,s))
-             (when (stable-set-difference ,notes ,optimization-failure-notes)
-               (unless ,optimization-failure-notes (terpri ,s))
-               (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
-                 (format ,s "While compiling~%")
-                 (pprint-logical-block (,s nil :per-line-prefix "    ")
-                   (format ,s "~S" ,form))
-                 (when (null ,optimization-failure-notes)
+
+           (let ((,other-notes (stable-set-difference ,notes ,optimization-failure-notes)))
+
+             (when ,optimization-note-condition
+               (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env)))
+             (when ,other-notes
+               (dolist (,note ,other-notes) (swank-signal ,note ,env)))
+
+             (let ((,s *error-output*))
+
+               (when (and ,optimization-note-condition ,optimization-failure-notes)
+                 (terpri ,s)
+                 (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
+                   (when *compile-file-pathname*
+                     (format ,s "In file ~A~%" *compile-file-pathname*))
+                   (format ,s "(Compiler) Macro of" )
+                   (let ((,name-string
+                           (format nil
+                                   (if (stringp ,name) "~A" " ~S ")
+                                   (or ,name (first ,form)))))
+                     (format ,s (if (< (length ,name-string) 38)
+                                    "~A"
+                                    "~&  ~A~&")
+                             ,name-string))
+                   (format ,s "is unable to optimize~%")
+                   (pprint-logical-block (,s nil :per-line-prefix "  ")
+                     (format ,s "~S" ,form))
                    (unless (eq 'parent-form
                                (macroexpand-1 'parent-form ,env))
                      (let ((parent-form (macroexpand-1 'parent-form ,env))
-                           (previous-form (macroexpand-1 'previous-form ,env)))
+                           (root-form   (macroexpand-1 'root-form ,env)))
                        (format ,s "~&in~%")
                        (pprint-logical-block (,s nil :per-line-prefix "  ")
                          (format ,s "~S" parent-form))
-                       (format ,s "~&generated from~&")
+                       (format ,s "~&generated from the top-level form~&")
                        (pprint-logical-block (,s nil :per-line-prefix "  ")
-                         (format ,s "~S" previous-form)))))
-                 (format ,s "~&  Following notes were encountered:~&")
-                 (pprint-logical-block (,s nil :per-line-prefix "    ")
-                   (format ,s "~{~^~%~A~}" ,notes)
-                   (mapc (lambda (c) (setf (muffled-p c) t)) ,notes)))
-               (terpri ,s))))))))
+                         (format ,s "~S" root-form))))
+                   (format ,s "~&because:~&")
+                   (pprint-logical-block (,s nil :per-line-prefix "  ")
+                     (format ,s "~{~^~%~A~}" ,optimization-failure-notes)
+                     (mapc (lambda (c) (setf (muffled-p c) t)) ,optimization-failure-notes)))
+                 (terpri ,s))
+
+               (when ,other-notes
+                 (unless ,optimization-failure-notes (terpri ,s))
+                 (pprint-logical-block (,s nil :per-line-prefix ,per-line-prefix)
+                   (format ,s "While compiling~%")
+                   (pprint-logical-block (,s nil :per-line-prefix "    ")
+                     (format ,s "~S" ,form))
+                   (when (null ,optimization-failure-notes)
+                     (unless (eq 'parent-form
+                                 (macroexpand-1 'parent-form ,env))
+                       (let ((parent-form (macroexpand-1 'parent-form ,env))
+                             (root-form   (macroexpand-1 'root-form ,env)))
+                         (format ,s "~&in~%")
+                         (pprint-logical-block (,s nil :per-line-prefix "  ")
+                           (format ,s "~S" parent-form))
+                         (format ,s "~&generated from the top-level form~&")
+                         (pprint-logical-block (,s nil :per-line-prefix "  ")
+                           (format ,s "~S" root-form)))))
+                   (format ,s "~&  Following notes were encountered:~&")
+                   (pprint-logical-block (,s nil :per-line-prefix "    ")
+                     (format ,s "~{~^~%~A~}" ,other-notes)
+                     (mapc (lambda (c) (setf (muffled-p c) t)) ,other-notes)))
+                 (terpri ,s)))))))))
+
+
 
 (defmacro with-notes ((form env
                        &rest key-args
@@ -207,4 +232,15 @@ And again, there is no trouble in case b.
   doing so could result in an incorrect print of the expansion paths."
   (declare (ignorable name unwind-on-signal other-conditions
                       per-line-prefix optimization-note-condition))
-  (apply 'with-notes-function body form env key-args))
+  (apply (fdefinition 'with-notes-function) body form env key-args))
+
+(defun augment-expansion-path (original-form expansion env)
+  (multiple-value-bind (root-form-expansion expandedp)
+      (macroexpand-1 'root-form env)
+    (declare (ignore root-form-expansion))
+    (if expandedp
+        `(symbol-macrolet ((parent-form ,expansion))
+           ,expansion)
+        `(symbol-macrolet ((root-form ,original-form)
+                           (parent-form ,expansion))
+           ,expansion))))
