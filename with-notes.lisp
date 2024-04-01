@@ -69,7 +69,7 @@ And again, there is no trouble in case b.
 
 
 
-(defun with-notes-function (body form env
+(defun with-notes-function (body form env-var
                             &key name (unwind-on-signal t)
                               (other-conditions nil)
                               (per-line-prefix "; ")
@@ -80,7 +80,7 @@ And again, there is no trouble in case b.
 
     (once-only (form per-line-prefix)
       `(let ((,muffled-notes-type `(or ,*muffled-notes-type*
-                                       ,@(declaration-information 'muffle ,env)))
+                                       ,@(declaration-information 'muffle ,env-var)))
              (*swank-signalled-notes* (when (find-package :swank/backend)
                                         (copy-list *swank-signalled-notes*)))
              ,notes ,condition-signalled ,optimization-failure-notes)
@@ -138,9 +138,9 @@ And again, there is no trouble in case b.
            (let ((,other-notes (stable-set-difference ,notes ,optimization-failure-notes)))
 
              (when ,optimization-note-condition
-               (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env)))
+               (dolist (,note ,optimization-failure-notes) (swank-signal ,note ,env-var)))
              (when ,other-notes
-               (dolist (,note ,other-notes) (swank-signal ,note ,env)))
+               (dolist (,note ,other-notes) (swank-signal ,note ,env-var)))
 
              (let ((,s *error-output*))
 
@@ -162,9 +162,9 @@ And again, there is no trouble in case b.
                    (pprint-logical-block (,s nil :per-line-prefix "  ")
                      (format ,s "~S" ,form))
                    (unless (eq 'parent-form
-                               (macroexpand-1 'parent-form ,env))
-                     (let ((parent-form (macroexpand-1 'parent-form ,env))
-                           (root-form   (macroexpand-1 'root-form ,env)))
+                               (macroexpand-1 'parent-form ,env-var))
+                     (let ((parent-form (macroexpand-1 'parent-form ,env-var))
+                           (root-form   (macroexpand-1 'root-form ,env-var)))
                        (format ,s "~&in~%")
                        (pprint-logical-block (,s nil :per-line-prefix "  ")
                          (format ,s "~S" parent-form))
@@ -185,9 +185,9 @@ And again, there is no trouble in case b.
                      (format ,s "~S" ,form))
                    (when (null ,optimization-failure-notes)
                      (unless (eq 'parent-form
-                                 (macroexpand-1 'parent-form ,env))
-                       (let ((parent-form (macroexpand-1 'parent-form ,env))
-                             (root-form   (macroexpand-1 'root-form ,env)))
+                                 (macroexpand-1 'parent-form ,env-var))
+                       (let ((parent-form (macroexpand-1 'parent-form ,env-var))
+                             (root-form   (macroexpand-1 'root-form ,env-var)))
                          (format ,s "~&in~%")
                          (pprint-logical-block (,s nil :per-line-prefix "  ")
                            (format ,s "~S" parent-form))
@@ -202,7 +202,7 @@ And again, there is no trouble in case b.
 
 
 
-(defmacro with-notes ((form env
+(defmacro with-notes ((form env-var
                        &rest key-args
                        &key
                          (name)
@@ -212,7 +212,7 @@ And again, there is no trouble in case b.
                          (optimization-note-condition t))
                       &body body)
   "A macro to readably signal COMPILER-MACRO-NOTES:NOTE for end-users:
-- Expects ENV to evaluate to an environment suitable for passing to
+- Expects ENV-VAR to evaluate to an environment suitable for passing to
   CL-ENVIRONMENTS.CLTL2:DEFINE-DECLARATION
 - BODY is surrounded by a (BLOCK WITH-NOTES ...) on the outside
 - Further, WITH-NOTES also wraps the BODY in an UNWIND-PROTECT and prints the
@@ -232,7 +232,7 @@ And again, there is no trouble in case b.
   doing so could result in an incorrect print of the expansion paths."
   (declare (ignorable name unwind-on-signal other-conditions
                       per-line-prefix optimization-note-condition))
-  (apply (fdefinition 'with-notes-function) body form env key-args))
+  (apply (fdefinition 'with-notes-function) body form env-var key-args))
 
 (defun augment-expansion-path (original-form expansion env)
   (multiple-value-bind (root-form-expansion expandedp)
