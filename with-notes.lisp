@@ -118,7 +118,12 @@ And again, there is no trouble in case b.
 
                 (if (equalp ,form ,return-form) ; no transformation occurred
                     ,return-form
-                    `(cl:symbol-macrolet ((parent-form ,,return-form))
+                    `(cl:symbol-macrolet ((root-form ,(multiple-value-bind (exp expandedp)
+                                                          (macroexpand 'root-form ,env-var)
+                                                         (if expandedp
+                                                             exp
+                                                             ,form)))
+                                          (parent-form ,,return-form))
                        ,,return-form)))
 
            (setq ,notes (remove-duplicates ,notes))
